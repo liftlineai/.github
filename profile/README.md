@@ -2,7 +2,7 @@
 
 **Predicting lift lines at ski resorts, so you can stop guessing which chair to walk to.**
 
-[liftlineai.app](https://liftlineai.app) · [iOS app](https://liftlineai.app) · [dev build](https://dev.liftlineai.app)
+[liftlineai.app](https://liftlineai.app) · [dev build](https://dev.liftlineai.app) · [lucas@liftlineai.app](mailto:lucas@liftlineai.app)
 
 ---
 
@@ -46,6 +46,8 @@ You cannot open any of these. You can read the names and speculate.
 
 ## Getting in touch
 
-Resort operator, skier with an opinion, or someone who wants to argue about queueing theory: open an issue on any public repo, or find [@Krazycatt](https://github.com/Krazycatt) here on GitHub.
+**[lucas@liftlineai.app](mailto:lucas@liftlineai.app)**
+
+Resort operator, skier with an opinion, or someone who wants to argue about queueing theory — all equally welcome. Also findable as [@Krazycatt](https://github.com/Krazycatt) here on GitHub.
 
 <sub>Built by one person and a great deal of compute. Not affiliated with any resort, which is why the predictions are honest.</sub>
