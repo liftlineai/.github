@@ -48,6 +48,6 @@ You cannot open any of these. You can read the names and speculate.
 
 **[lucas@liftlineai.app](mailto:lucas@liftlineai.app)**
 
-Resort operator, skier with an opinion, or someone who wants to argue about queueing theory — all equally welcome. Also findable as [@Krazycatt](https://github.com/Krazycatt) here on GitHub.
+Resort operator, skier with an opinion, or someone who wants to argue about queueing theory — all equally welcome. Also findable as [@TheTorchicken](https://github.com/TheTorchicken) here on GitHub.
 
 <sub>Built by one person and a great deal of compute. Not affiliated with any resort, which is why the predictions are honest.</sub>
