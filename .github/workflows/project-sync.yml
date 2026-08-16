@@ -1,0 +1,107 @@
+name: Project sync (reusable)
+
+on:
+  workflow_call:
+    inputs:
+      issue_number:
+        required: true
+        type: number
+      repository:
+        required: true
+        type: string
+    secrets:
+      PROJECTS_SYNC_TOKEN:
+        required: true
+
+permissions: {}
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v9
+        with:
+          github-token: ${{ secrets.PROJECTS_SYNC_TOKEN }}
+          script: |
+            const ORG = 'liftlineai'
+            const PROJECT_NUMBER = Number('${{ vars.PROJECTS_V2_NUMBER }}')
+            const [owner, repo] = '${{ inputs.repository }}'.split('/')
+            const issue_number = Number('${{ inputs.issue_number }}')
+
+            // Re-fetch current state rather than trust the event payload — correct even if
+            // several label events fire in a burst, since the last run to finish always wins
+            // with the true current state.
+            const { data: issue } = await github.rest.issues.get({ owner, repo, issue_number })
+            const labels = issue.labels.map(l => typeof l === 'string' ? l : l.name)
+            const pick = (prefix) => { const l = labels.find(x => x.startsWith(prefix)); return l ? l.slice(prefix.length) : null }
+
+            const lc = pick('LC::')
+            const STATUS_MAP = { ReadyForDev: 'Ready', InProgress: 'In Progress', CodeReview: 'In Review', ReadyForMerge: 'In Review', Merged: 'Merged' }
+            // Status is left untouched on close/reopen — the project's native workflows own those transitions.
+            const statusName = issue.state === 'closed' ? null : (STATUS_MAP[lc] ?? 'Backlog')
+
+            const priorityRaw = pick('P::')
+            const priorityName = priorityRaw ? `P${priorityRaw}` : null
+            const moduleName = pick('mod::') ?? 'none'
+            const weightRaw = pick('wt::')
+            const weightNum = weightRaw ? parseInt(weightRaw, 10) : null
+            const milestoneTitle = issue.milestone ? issue.milestone.title : null
+            const dateValue = issue.milestone && issue.milestone.due_on ? issue.milestone.due_on.slice(0, 10) : null
+
+            // Field and option IDs are resolved fresh every run, never hardcoded — a new epic
+            // or module option becomes usable the moment it exists, with no workflow edit.
+            const schema = await github.graphql(
+              `query($org:String!, $number:Int!) {
+                organization(login:$org) {
+                  projectV2(number:$number) {
+                    id
+                    fields(first: 20) {
+                      nodes {
+                        __typename
+                        ... on ProjectV2Field { id name }
+                        ... on ProjectV2SingleSelectField { id name options { id name } }
+                      }
+                    }
+                  }
+                }
+              }`,
+              { org: ORG, number: PROJECT_NUMBER }
+            )
+            const project = schema.organization.projectV2
+            const field = (name) => project.fields.nodes.find(f => f.name === name)
+            const optId = (fieldName, optionName) => {
+              if (optionName == null) return null
+              const f = field(fieldName)
+              const opt = f && f.options && f.options.find(o => o.name === optionName)
+              if (!opt) { core.warning(`No option "${optionName}" on field "${fieldName}"`); return null }
+              return opt.id
+            }
+
+            const add = await github.graphql(
+              `mutation($projectId:ID!, $contentId:ID!) {
+                addProjectV2ItemById(input:{projectId:$projectId, contentId:$contentId}) { item { id } }
+              }`,
+              { projectId: project.id, contentId: issue.node_id }
+            )
+            const itemId = add.addProjectV2ItemById.item.id
+
+            async function setField(fieldName, value) {
+              if (value == null) return
+              const fid = field(fieldName) && field(fieldName).id
+              if (!fid) return
+              await github.graphql(
+                `mutation($p:ID!, $i:ID!, $f:ID!, $value: ProjectV2FieldValue!) {
+                  updateProjectV2ItemFieldValue(input:{projectId:$p, itemId:$i, fieldId:$f, value:$value}) { projectV2Item { id } }
+                }`,
+                { p: project.id, i: itemId, f: fid, value }
+              )
+            }
+
+            if (statusName) { const o = optId('Status', statusName); if (o) await setField('Status', { singleSelectOptionId: o }) }
+            if (priorityName) { const o = optId('Priority', priorityName); if (o) await setField('Priority', { singleSelectOptionId: o }) }
+            { const o = optId('Module', moduleName); if (o) await setField('Module', { singleSelectOptionId: o }) }
+            if (weightNum != null) await setField('Weight', { number: weightNum })
+            if (milestoneTitle) { const o = optId('Epic', milestoneTitle); if (o) await setField('Epic', { singleSelectOptionId: o }) }
+            if (dateValue) await setField('Target date', { date: dateValue })
+
+            core.info(`synced ${owner}/${repo}#${issue_number}`)
